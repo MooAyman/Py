@@ -1,0 +1,330 @@
+from tkinter import *
+from tkinter import ttk
+import heapq
+
+#obj
+top = Tk()
+top.title('Romania Map Problem')
+top.geometry("1500x1200")
+
+city_coordinates = {
+    'arad': (20, 150),
+    'zerind': (200, 100),
+    'oradea': (250, 150),
+    'timisoara': (70, 250),
+    'lugoj': (150, 280),
+    'mehadia': (200, 300),
+    'drobeta': (250, 330),
+    'craiova': (330, 330),
+    'rimnicu': (350, 250),
+    'sibiu': (250, 200),
+    'fagaras': (350, 150),
+    'pitesti': (450, 250),
+    'bucharest': (550, 200),
+    'giurgiu': (520, 300),
+    'urziceni': (650, 250),
+    'hirsova': (750, 300),
+    'eforie': (820, 320),
+    'vaslui': (650, 150),
+    'lasi': (700, 100),
+    'neamt': (800, 50)
+}
+
+romaniaMap = {
+    'arad': ['sibiu', 'zerind', 'timisoara'],
+    'zerind': ['arad', 'oradea'],
+    'oradea': ['zerind', 'sibiu'],
+    'sibiu': ['arad', 'oradea', 'fagaras', 'rimnicu'],
+    'timisoara': ['arad', 'lugoj'],
+    'lugoj': ['timisoara', 'mehadia'],
+    'mehadia': ['lugoj', 'drobeta'],
+    'drobeta': ['mehadia', 'craiova'],
+    'craiova': ['drobeta', 'rimnicu', 'pitesti'],
+    'rimnicu': ['sibiu', 'craiova', 'pitesti'],
+    'fagaras': ['sibiu', 'bucharest'],
+    'pitesti': ['rimnicu', 'craiova', 'bucharest'],
+    'bucharest': ['fagaras', 'pitesti', 'giurgiu', 'urziceni'],
+    'giurgiu': ['bucharest'],
+    'urziceni': ['bucharest', 'vaslui', 'hirsova'],
+    'hirsova': ['urziceni', 'eforie'],
+    'eforie': ['hirsova'],
+    'vaslui': ['lasi', 'urziceni'],
+    'lasi': ['vaslui', 'neamt'],
+    'neamt': ['lasi']
+}
+
+romaniaMap_with_costs = {
+    'arad': [('sibiu',140), ('zerind',75), ('timisoara',118)],
+    'zerind': [('arad',75), ('oradea',71)],
+    'oradea': [('zerind',71), ('sibiu',151)],
+    'sibiu': [('arad',140), ('oradea',151), ('fagaras',99), ('rimnicu',80)],
+    'timisoara': [('arad',118), ('lugoj',111)],
+    'lugoj': [('timisoara',111), ('mehadia',70)],
+    'mehadia': [('lugoj',70), ('drobeta',75)],
+    'drobeta': [('mehadia',75), ('craiova',120)],
+    'craiova': [('drobeta',120), ('rimnicu',146), ('pitesti',138)],
+    'rimnicu': [('sibiu',80), ('craiova',146), ('pitesti',97)],
+    'fagaras': [('sibiu',99), ('bucharest',211)],
+    'pitesti': [('rimnicu',97), ('craiova',138), ('bucharest',101)],
+    'bucharest': [('fagaras',211), ('pitesti',101), ('giurgiu',90), ('urziceni',85)],
+    'giurgiu': [('bucharest',90)],
+    'urziceni': [('bucharest',85), ('vaslui',142), ('hirsova',98)],
+    'hirsova': [('urziceni',98), ('eforie',86)],
+    'eforie': [('hirsova',86)],
+    'vaslui': [('lasi',92), ('urziceni',142)],
+    'lasi': [('vaslui',92), ('neamt',87)],
+    'neamt': [('lasi',87)]
+}
+
+# draw the map and path
+def draw_map_with_path(path):
+    # deleting any previous path
+    canvas.delete("all")
+    # drawing cities
+    for city, (x, y) in city_coordinates.items():
+        canvas.create_oval(x - 5, y - 5, x + 5, y + 5, fill="blue", outline="black")
+        canvas.create_text(x, y + 10, text=city)
+    # drawing connections and distances
+        connections = romaniaMap_with_costs.get(city, [])
+        for connected_city, distance in connections:
+            if connected_city != path:
+                x2, y2 = city_coordinates[connected_city]
+                canvas.create_line(x, y, x2, y2, fill="gray", width=1) # x,y is the current city & x2,y2 is the connected_city
+                canvas.create_text((x + x2) / 2, (y + y2) / 2, text=str(distance), fill="gray")    
+    # drawing the path 
+    for i in range(len(path) - 1): # -1 to skip last city
+        city1 = path[i]
+        city2 = path[i + 1]
+        x1, y1 = city_coordinates[city1]
+        x2, y2 = city_coordinates[city2]
+        canvas.create_line(x1, y1, x2, y2, fill="red", width=2)
+
+# clearing the displayed path and resultLabel manually 
+def clear_path():
+    resultLabel.config(text="")
+    draw_map_with_path([])
+
+H_table ={
+    'arad': 366,
+    'zerind': 374,
+    'oradea': 380,
+    'sibiu': 253,
+    'timisoara': 329,
+    'lugoj': 244,
+    'mehadia': 241,
+    'drobeta': 242,
+    'craiova': 160,
+    'rimnicu': 193,
+    'fagaras': 176,
+    'pitesti': 100,
+    'bucharest': 0,
+    'giurgiu': 77,
+    'urziceni': 80,
+    'hirsova': 151,
+    'eforie': 161,
+    'vaslui': 199,
+    'lasi': 226,
+    'neamt': 234
+}
+
+def BFS(romaniaMap, start, goal):
+    visited = []         # empty list
+    queue = [[start]]    # initial path (queue is to explore)
+    total_cost = 0      # initializing total cost
+    while queue:
+        # FIFO
+        path = queue.pop(0)
+        node = path[-1]
+        if node in visited:
+            continue          # skip 
+        visited.append(node)
+        if node == goal:
+            # calculate total cost
+            for i in range(len(path)-1):
+                #for each city (path[i]), it finds the connected city (path[i+1]) in the romaniaMap_with_costs
+                total_cost += [cost for city, cost in romaniaMap_with_costs[path[i]] if city == path[i+1]][0]
+            return path, total_cost
+        else:
+            # expanding the node
+            adjacent_nodes = romaniaMap.get(node, [])      #empty list [] as a default value
+            # neighboring city (node2)
+            for node2 in adjacent_nodes:
+                new_path = path.copy()          # to avoid modifying the original path
+                new_path.append(node2)
+                queue.append(new_path)
+    return None, None  # If no path is found
+    
+def DFS(romaniaMap, start, goal):
+    visited = []        # empty list
+    queue = [[start]]   # initial path
+    total_cost = 0      # initializing total cost
+    while queue:
+        # LIFO
+        path = queue.pop()      # removes the last element (LIFO)
+        node = path[-1]
+        if node in visited:
+            continue          # skip 
+        visited.append(node)
+        if node == goal:
+            # Calculate total cost
+            for i in range(len(path)-1):
+                total_cost += [cost for city, cost in romaniaMap_with_costs[path[i]] if city == path[i+1]][0]
+            return path, total_cost
+        else:
+            # expanding the node (explore its neighboring cities)
+            adjacent_nodes = romaniaMap.get(node, [])      # empty list [] as a default value
+            for node2 in adjacent_nodes:
+                new_path = path.copy()
+                new_path.append(node2)
+                queue.append(new_path)
+    return None, None  # If no path is found, return None
+
+def A_star(romaniaMap_with_costs, start, goal):
+    # avoid duplicates & infinity loop
+    visited = set()
+    queue = [(0 + H_table[start], [(start, 0)])]  # Initialize the "priority queue" with the start node and its cost
+    while queue:
+        queue.sort()  # sort based on total estimated cost (f_cost = g_cost + h_cost) 
+        _, path = queue.pop(0)  # extract the path with the lowest total cost (lower is closer to the goal) & " _ " means f_cost value is ignored
+        node, g_cost = path[-1]  # extract the last node and its cost from the path(city_name, cost_to_reach_city)
+        if node in visited:
+            continue
+        visited.add(node)
+        if node == goal:
+            return path, g_cost  # Return both the path and the total cost
+        else:
+            # expanding the node (explore its neighboring cities)
+            adjacent_nodes = romaniaMap_with_costs.get(node, [])    # empty list [] as a default value
+            for (node2, cost) in adjacent_nodes:        # iterates through each neighboring city
+                new_path = path + [(node2, g_cost + cost)]  # extend the current path with the new node and its cost
+                queue.append((g_cost + cost + H_table[node2], new_path))  # Add the new path to the queue with its total cost
+    return None, None  # If no path is found, return None
+    
+def dijkstra(romaniaMap_with_costs, start, goal):
+    # Initialize distances with infinity for all nodes except the start node
+    distances = {node: float('inf') for node in romaniaMap_with_costs}
+    distances[start] = 0
+    queue = [(0, start)]  # Initialize Priority queue (distance, node)
+    # Initialize the dictionary to keep track of the shortest path
+    shortest_path = {node: None for node in romaniaMap_with_costs}
+    while queue:
+        # Pop the node with the smallest distance from the priority queue
+        current_distance, current_node = heapq.heappop(queue)
+        if current_node == goal:    #if true .. reconstruct and return the shortest path
+            path = []
+            while current_node is not None:
+                path.insert(0, current_node)
+                current_node = shortest_path[current_node]
+            return path, distances[goal]
+        # Explore neighbors of the current node
+        for neighbor, weight in romaniaMap_with_costs[current_node]:
+            distance = current_distance + weight
+            if distance < distances[neighbor]:
+                distances[neighbor] = distance
+                shortest_path[neighbor] = current_node
+                heapq.heappush(queue, (distance, neighbor))
+    return None, None  # If no path is found, return None
+
+# accessing functions with GUI
+def BFS_IMP():
+    current_state = currentStateCombo.get()
+    goal = goalStateCombo.get()
+    finalpath, total_cost = BFS(romaniaMap, current_state, goal)
+    if finalpath is not None:
+        resultLabel.config(text="The path using BFS algorithm: " + str(finalpath) + ".\n Total cost: " + str(total_cost))
+        draw_map_with_path(finalpath)
+    else:
+        resultLabel.config(text="No path found using BFS algorithm.")
+
+def DFS_IMP():
+    current_state = currentStateCombo.get()
+    goal = goalStateCombo.get()
+    finalpath, total_cost = DFS(romaniaMap, current_state, goal)
+    if finalpath is not None:
+        resultLabel.config(text="The path using DFS algorithm: " + str(finalpath) + ".\n Total cost: " + str(total_cost))
+        draw_map_with_path(finalpath)
+    else:
+        resultLabel.config(text="No path found using DFS algorithm.")
+
+def A_star_IMP():
+    current_state = currentStateCombo.get()
+    goal = goalStateCombo.get()
+    finalpath, total_cost = A_star(romaniaMap_with_costs, current_state, goal)
+    if finalpath is not None:
+        # constructing the total cost path
+        total_cost_path = [(node, cost) for node, cost in finalpath]
+        resultLabel.config(text="The path using A* algorithm: " + str(total_cost_path) + ".\n Total cost: " + str(total_cost))
+        # extracting the nodes from the path
+        node_path = [node for node, _ in finalpath]
+        draw_map_with_path(node_path)
+    else:
+        resultLabel.config(text="No path found using A* algorithm.")
+
+def dijkstra_IMP():
+    current_state = currentStateCombo.get()
+    goal = goalStateCombo.get()
+    finalpath, total_cost = dijkstra(romaniaMap_with_costs, current_state, goal)
+    if finalpath is not None:
+        # constructing the total cost path
+        result_path = [(node, [cost for _, cost in romaniaMap_with_costs[node] if _ == finalpath[i+1]][0]) for i, node in enumerate(finalpath[:-1])]
+        total_cost = sum(cost for _, cost in result_path)
+        # add the goal city to the end of the path
+        result_path.append((goal, 0))
+        resultLabel.config(text="The path using Dijkstra algorithm: " + str(result_path) + ".\n Total cost: " + str(total_cost))
+        # extracting just the nodes from the path
+        node_path = [node for node in finalpath]
+        draw_map_with_path(node_path)
+    else:
+        resultLabel.config(text="No path found using Dijkstra's algorithm.")
+
+# mapping algorithm names
+algorithm_functions = {
+    'BFS': BFS_IMP,
+    'DFS': DFS_IMP,
+    'A*': A_star_IMP,
+    'Dijkstra': dijkstra_IMP
+}
+
+# executing the selected algorithm
+def execute_algorithm():
+    algorithm_name = algorithmCombo.get()
+    if algorithm_name in algorithm_functions:
+        algorithm_functions[algorithm_name]()
+
+# UI elements
+currentStateLabel = Label(text='Select your Current State')
+currentStateLabel.pack(pady=5)
+
+currentStateCombo = ttk.Combobox(values=list(city_coordinates.keys()))
+currentStateCombo.pack()
+
+goalStateLabel = Label(text='Select Goal State')
+goalStateLabel.pack(pady=5)
+
+goalStateCombo = ttk.Combobox(values=list(city_coordinates.keys()))
+goalStateCombo.pack()
+
+algorithmLabel = Label(text='Select Search Algorithm')
+algorithmLabel.pack(pady=5)
+
+algorithmCombo = ttk.Combobox(values=['BFS', 'DFS', 'A*', 'Dijkstra'])
+algorithmCombo.pack()
+
+executeButton = Button(text='Execute Algorithm', bg='blue', fg='white', command=execute_algorithm)
+executeButton.pack(pady=5)
+
+resultLabel = Label(text="", font=("Helvetica", 15))
+resultLabel.pack()
+resultLabel.place(relx=0.5, rely=0.914, anchor='s')
+
+
+canvas = Canvas(top, width=900, height=500)
+canvas.pack()
+
+draw_map_with_path([])
+
+clearButton = Button(text='Clear the path', bg='black', fg='white', command=clear_path)
+clearButton.pack(anchor=NE)
+
+
+top.mainloop()
